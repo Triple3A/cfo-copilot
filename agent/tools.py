@@ -14,15 +14,19 @@ def _clean_financial_value(value):
     return float(value)
 
 def _parse_date(date_str):
-    """Parses 'Mon-YY' into a datetime object."""
-    return datetime.strptime(date_str, '%b-%y')
+    """Parses 'Mon-YY' or 'YYYY-MM' into a datetime object."""
+    # try:
+    #     return datetime.strptime(date_str, '%b-%y')
+    # except ValueError:
+    return datetime.strptime(date_str, '%Y-%m')
+
 
 def load_and_prepare_data():
     """Loads, cleans, and prepares all financial data from CSVs."""
-    actuals = pd.read_csv('fixtures/actuals.csv')
-    budget = pd.read_csv('fixtures/budget.csv')
-    fx = pd.read_csv('fixtures/fx.csv')
-    cash = pd.read_csv('fixtures/cash.csv')
+    actuals = pd.read_csv('actuals.csv')
+    budget = pd.read_csv('budget.csv')
+    fx = pd.read_csv('fx.csv')
+    cash = pd.read_csv('cash.csv')
 
     # actuals = actuals.melt(id_vars=['entity', 'Account'], var_name='month', value_name='Actual')
     # budget = budget.melt(id_vars=['entity', 'Account'], var_name='month', value_name='Budget')
@@ -42,16 +46,23 @@ def load_and_prepare_data():
     fx['rate_to_eur'] = fx['rate_to_usd'] / fx['rate_to_eur']
     euro_rates = fx[fx['currency'] == 'USD'][['month', 'rate_to_eur']]
 
+
     # Merge with FX rates
     actuals = pd.merge(actuals, fx, on=['month', 'currency'], how='left')
     budget = pd.merge(budget, fx, on=['month', 'currency'], how='left')
     cash = pd.merge(cash, euro_rates, on='month', how='left')
+
 
     actuals['amount_usd'] = actuals['amount'] * actuals['rate_to_usd']
     budget['amount_usd'] = budget['amount'] * budget['rate_to_usd']
     actuals['amount_eur'] = actuals['amount'] * actuals['rate_to_eur']
     budget['amount_eur'] = budget['amount'] * budget['rate_to_eur']
     cash['cash_eur'] = cash['cash_usd'] * cash['rate_to_eur']
+
+    actuals.drop(columns=['amount', 'currency', 'rate_to_usd', 'rate_to_eur'], inplace=True)
+    budget.drop(columns=['amount', 'currency', 'rate_to_usd', 'rate_to_eur'], inplace=True)
+    cash.drop(columns=['rate_to_eur'], inplace=True)
+
 
     return {
         "actuals": actuals,
