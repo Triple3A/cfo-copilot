@@ -175,3 +175,41 @@ def get_opex_breakdown(data, month_str, currency='USD'):
     fig.update_layout(showlegend=True)
 
     return {"response": response, "figure": fig}
+
+
+def get_ebitda(data, month_str, currency='USD'):
+    """Calculates EBITDA for a given month."""
+    try:
+        target_date = datetime.strptime(month_str, '%B %Y')
+        target_period = pd.Period(target_date, freq='M')
+    except ValueError:
+        return {"response": "I couldn't understand the date. Please use 'Month YYYY' format.", "figure": None}
+
+    col = 'amount_usd' if currency == 'USD' else 'amount_eur'
+    
+    # Filter for Revenue
+    rev_actuals = data['actuals'][data['actuals']['account_category'] == 'Revenue'].copy()
+    month_rev_actuals = rev_actuals[rev_actuals['month'].dt.to_period('M') == target_period][col].sum()
+
+    cogs_actuals = data['actuals'][data['actuals']['account_category'] == 'COGS'].copy()
+    month_cogs_actuals = cogs_actuals[cogs_actuals['month'].dt.to_period('M') == target_period][col].sum()
+
+    opex_actuals = data['actuals'][data['actuals']['account_category'].str.startswith('Opex')].copy()
+    month_opex_actuals = opex_actuals[opex_actuals['month'].dt.to_period('M') == target_period][col].sum()
+    
+    ebitda = month_rev_actuals - month_cogs_actuals - month_opex_actuals
+
+    sign = '$' if currency == 'USD' else '€'
+    response = (
+        f"EBITDA for {month_str}: {sign}{ebitda:,.0f}"
+    )
+
+    df = pd.DataFrame({
+        'Category': ['Revenue', 'COGS', 'Opex'],
+        f'Amount ({currency})': [month_rev_actuals, month_cogs_actuals, month_opex_actuals]
+    })
+
+    fig = px.bar(df, x='Category', y=f'Amount ({currency})', title=f'EBITDA - {month_str}', text_auto='.2s')
+    fig.update_traces(textangle=0, textposition="outside")
+
+    return {"response": response, "figure": fig}
