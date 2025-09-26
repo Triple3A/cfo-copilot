@@ -1,6 +1,9 @@
 import pandas as pd
 import plotly.express as px
 from datetime import datetime
+import plotly.graph_objects as go
+from math import ceil
+
 
 def _clean_financial_value(value):
     """Cleans a string financial value into a float."""
@@ -13,11 +16,9 @@ def _clean_financial_value(value):
         value = '-' + value[1:-1]
     return float(value)
 
+
 def _parse_date(date_str):
     """Parses 'Mon-YY' or 'YYYY-MM' into a datetime object."""
-    # try:
-    #     return datetime.strptime(date_str, '%b-%y')
-    # except ValueError:
     return datetime.strptime(date_str, '%Y-%m')
 
 
@@ -27,10 +28,6 @@ def load_and_prepare_data():
     budget = pd.read_csv('budget.csv')
     fx = pd.read_csv('fx.csv')
     cash = pd.read_csv('cash.csv')
-
-    # actuals = actuals.melt(id_vars=['entity', 'Account'], var_name='month', value_name='Actual')
-    # budget = budget.melt(id_vars=['entity', 'Account'], var_name='month', value_name='Budget')
-    # cash = cash.melt(id_vars=['entity'], var_name='month', value_name='Cash')
 
     actuals['amount'] = actuals['amount'].apply(_clean_financial_value)
     budget['amount'] = budget['amount'].apply(_clean_financial_value)
@@ -71,7 +68,7 @@ def load_and_prepare_data():
     }
 
 
-def get_revenue(data, month_str, currency='USD'):
+def get_revenue(data, month_str, currency):
     """Calculates Revenue (Actual vs Budget) for a given month."""
     try:
         target_date = datetime.strptime(month_str, '%B %Y')
@@ -79,7 +76,7 @@ def get_revenue(data, month_str, currency='USD'):
     except ValueError:
         return {"response": "I couldn't understand the date. Please use 'Month YYYY' format.", "figure": None}
 
-    
+
     rev_actuals = data['actuals'][data['actuals']['account_category'] == 'Revenue']
     rev_budget = data['budget'][data['budget']['account_category'] == 'Revenue']
 
@@ -88,7 +85,7 @@ def get_revenue(data, month_str, currency='USD'):
     else:
         col = 'amount_usd'
 
-    
+
     monthly_actual = rev_actuals[rev_actuals['month'].dt.to_period('M') == target_period][col].sum()
     monthly_budget = rev_budget[rev_budget['month'].dt.to_period('M') == target_period][col].sum()
 
@@ -100,13 +97,14 @@ def get_revenue(data, month_str, currency='USD'):
     variance_pct = (variance / monthly_budget) * 100 if monthly_budget != 0 else float('inf')
 
     sign = '$' if currency == 'USD' else '€'
-    
+
     response = (
         f"Revenue for {month_str}:\n"
         f"- Actual: {sign}{monthly_actual:,.0f}\n"
         f"- Budget: {sign}{monthly_budget:,.0f}\n"
         f"- Variance: {sign}{variance:,.0f} ({variance_pct:.1f}%)"
     )
+
 
     df = pd.DataFrame({
         'Category': ['Actual', 'Budget'],
@@ -211,5 +209,111 @@ def get_ebitda(data, month_str, currency='USD'):
 
     fig = px.bar(df, x='Category', y=f'Amount ({currency})', title=f'EBITDA - {month_str}', text_auto='.2s')
     fig.update_traces(textangle=0, textposition="outside")
+
+    return {"response": response, "figure": fig}
+
+
+def get_cash_runway(data, currency='USD'):
+    """Calculates Cash Runway for the last 3 months."""
+    LAST_N_MONTHS = 3
+    sign = '$' if currency == 'USD' else '€'
+    december_ebitda = int(get_ebitda(data, 'December 2025', currency)['response'].split(sign)[1].replace(',', ''))
+    november_ebitda = int(get_ebitda(data, 'November 2025', currency)['response'].split(sign)[1].replace(',', ''))
+    october_ebitda = int(get_ebitda(data, 'October 2025', currency)['response'].split(sign)[1].replace(',', ''))
+
+    avg_net_burn = -(december_ebitda + november_ebitda + october_ebitda) / LAST_N_MONTHS
+
+    col = 'cash_usd' if currency == 'USD' else 'cash_eur'
+    cash = int(data['cash'].tail(1)[col].iloc[0])
+
+    cash_runway = cash / avg_net_burn
+
+    response = ""
+    fig = go.Figure()
+    latest_month_date = data['cash']['month'].max()
+    
+    if avg_net_burn > 0:
+        response = (
+            f"Cash Runway Analysis:\n"
+            f"- Current Cash: {sign}{cash:,.0f}\n"
+            f"- Avg. Monthly Net Burn (Last {LAST_N_MONTHS} Months): {sign}{avg_net_burn:,.0f}\n\n"
+            f"At the current burn rate, the estimated cash runway is {cash_runway:.1f} months."
+        )
+
+        projected_dates = []
+        projected_cash = []
+        projection_horizon = int(cash_runway) + 3 
+        
+        for i in range(projection_horizon):
+            future_date = latest_month_date + pd.DateOffset(months=i)
+            future_cash = cash - (i * avg_net_burn)
+            projected_dates.append(future_date)
+            projected_cash.append(max(0, future_cash))
+            if future_cash <= 0:
+                break
+
+
+        fig.add_trace(go.Scatter(
+            x=data['cash'].tail(10)['month'], y=data['cash'].tail(10)[col].values,
+            mode='lines+markers', name='Historical Cash', line=dict(color='blue')
+        ))
+        fig.add_trace(go.Scatter(
+            x=projected_dates, y=projected_cash,
+            mode='lines+markers', name='Projected Runway', line=dict(color='red', dash='dash')
+        ))
+
+        fig.add_hline(y=0, line_width=1, line_dash="solid", line_color="black")
+        
+
+        end_of_runway_date = latest_month_date + pd.DateOffset(months=ceil(cash_runway))
+        fig.add_annotation(
+            x=end_of_runway_date, y=0,
+            text=f"End of Runway (~{cash_runway:.1f} months)",
+            showarrow=True, arrowhead=1, ax=0, ay=-40,
+            bgcolor="rgba(255, 0, 0, 0.7)", textangle=0, font=dict(color="white")
+        )
+
+    else:
+
+        monthly_profit = -avg_net_burn
+        response = (
+            f"Cash Flow Analysis:\n"
+            f"- Current Cash: {sign}{cash:,.0f}\n"
+            f"- Avg. Monthly Net Profit (Last {LAST_N_MONTHS} Months): {sign}{monthly_profit:,.0f}\n\n"
+            f"The company is cash flow positive based on the last three months.\n"
+            f"The concept of a 'cash runway' does not apply, as the cash balance is growing."
+        )
+
+        projected_dates = []
+        projected_cash = []
+
+        for i in range(6):
+            future_date = latest_month_date + pd.DateOffset(months=i)
+
+            future_cash = cash + (i * monthly_profit)
+            projected_dates.append(future_date)
+            projected_cash.append(future_cash)
+
+
+        fig.add_trace(go.Scatter(
+            x=data['cash'].tail(10)['month'], y=data['cash'].tail(10)[col].values,
+            mode='lines+markers', name='Historical Cash', line=dict(color='blue')
+        ))
+        fig.add_trace(go.Scatter(
+            x=projected_dates, y=projected_cash,
+            mode='lines+markers', name='Projected Growth', line=dict(color='green', dash='dash')
+        ))
+
+
+    x = 0.7 if avg_net_burn > 0 else 0.01
+    fig.update_layout(
+        title='Cash Balance and Projected Runway',
+        xaxis_title='Month',
+        yaxis_title=f'Cash ({currency})',
+        yaxis_tickprefix=sign,
+        yaxis_tickformat=',.0f',
+        legend=dict(x=x, y=0.98, bordercolor="Black", borderwidth=1),
+        margin=dict(t=50, b=10, l=10, r=10)
+    )
 
     return {"response": response, "figure": fig}
