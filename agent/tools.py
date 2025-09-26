@@ -142,3 +142,36 @@ def get_gross_margin_trend(data, last_n_months=6):
     fig.update_yaxes(ticksuffix="%")
 
     return {"response": response, "figure": fig}
+
+
+def get_opex_breakdown(data, month_str, currency='USD'):
+    """Provides OPEX breakdown by account for a given month."""
+    try:
+        target_date = datetime.strptime(month_str, '%B %Y')
+        target_period = pd.Period(target_date, freq='M')
+    except ValueError:
+        return {"response": "I couldn't understand the date. Please use 'Month YYYY' format.", "figure": None}
+
+    col = 'amount_usd' if currency == 'USD' else 'amount_eur'
+
+    opex_actuals = data['actuals'][data['actuals']['account_category'].str.startswith('Opex')].copy()
+    opex_actuals['Opex_Category'] = opex_actuals['account_category'].str.split(':').str[1]
+
+    monthly_opex_breakdown = opex_actuals[opex_actuals['month'].dt.to_period('M') == target_period].groupby('Opex_Category')[col].sum().reset_index()
+    opex_total = monthly_opex_breakdown[col].sum()
+
+    if monthly_opex_breakdown.empty:
+        return {"response": f"No OPEX data found for {month_str}.", "figure": None}
+
+    sign = '$' if currency == 'USD' else '€'
+
+    response = f"Opex Breakdown for {month_str} ({currency}):\n"
+    for index, row in monthly_opex_breakdown.iterrows():
+        response += f"- {row['Opex_Category']}: {sign}{row[col]:,.0f}\n"
+    response += f"Total Opex: {sign}{opex_total:,.0f}"
+
+    fig = px.pie(monthly_opex_breakdown, names=['Admin', 'Marketing', 'R&D', 'Sales'], values=col, title=f'OPEX Breakdown - {month_str}', hole=0.3)
+    fig.update_traces(textposition='inside', textinfo='percent+label')
+    fig.update_layout(showlegend=True)
+
+    return {"response": response, "figure": fig}
