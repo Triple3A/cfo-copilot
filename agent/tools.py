@@ -79,7 +79,7 @@ def get_revenue(data, month_str, currency='USD'):
     except ValueError:
         return {"response": "I couldn't understand the date. Please use 'Month YYYY' format.", "figure": None}
 
-    # Filter for Revenue
+    
     rev_actuals = data['actuals'][data['actuals']['account_category'] == 'Revenue']
     rev_budget = data['budget'][data['budget']['account_category'] == 'Revenue']
 
@@ -88,7 +88,7 @@ def get_revenue(data, month_str, currency='USD'):
     else:
         col = 'amount_usd'
 
-    # Filter for Month
+    
     monthly_actual = rev_actuals[rev_actuals['month'].dt.to_period('M') == target_period][col].sum()
     monthly_budget = rev_budget[rev_budget['month'].dt.to_period('M') == target_period][col].sum()
 
@@ -100,7 +100,7 @@ def get_revenue(data, month_str, currency='USD'):
     variance_pct = (variance / monthly_budget) * 100 if monthly_budget != 0 else float('inf')
 
     sign = '$' if currency == 'USD' else '€'
-    # Create response
+    
     response = (
         f"Revenue for {month_str}:\n"
         f"- Actual: {sign}{monthly_actual:,.0f}\n"
@@ -108,7 +108,6 @@ def get_revenue(data, month_str, currency='USD'):
         f"- Variance: {sign}{variance:,.0f} ({variance_pct:.1f}%)"
     )
 
-    # Create chart
     df = pd.DataFrame({
         'Category': ['Actual', 'Budget'],
         f'Amount ({currency})': [monthly_actual, monthly_budget]
@@ -116,5 +115,30 @@ def get_revenue(data, month_str, currency='USD'):
     fig = px.bar(df, x='Category', y=f'Amount ({currency})', title=f'Revenue - {month_str}', text_auto='.2s')
     fig.update_traces(textangle=0, textposition="outside")
 
+
+    return {"response": response, "figure": fig}
+
+
+def get_gross_margin_trend(data, last_n_months=6):
+    """Calculates Gross Margin % trend for the last N months."""
+    df = data['actuals'].copy()
+    df = df[df['account_category'].isin(['Revenue', 'COGS'])]
+
+    pivot = df.pivot_table(index='month', columns='account_category', values='amount_usd', aggfunc='sum').fillna(0)
+    pivot = pivot.sort_index(ascending=False).head(last_n_months).sort_index()
+
+    pivot['Gross_Margin_USD'] = pivot['Revenue'] - pivot.get('COGS', 0)
+    pivot['Gross_Margin_%'] = (pivot['Gross_Margin_USD'] / pivot['Revenue']).fillna(0) * 100
+
+    latest_month = pivot.index.max().strftime('%B %Y')
+    latest_gm = pivot.loc[pivot.index.max(), 'Gross_Margin_%']
+    response = (
+        f"Gross Margin Trend:\n"
+        f"The latest gross margin for {latest_month} was {latest_gm:.1f}%."
+    )
+
+    fig = px.line(pivot, y='Gross_Margin_%', title=f'Gross Margin % Trend (Last {last_n_months} Months)', markers=True)
+    fig.update_layout(yaxis_title='Gross Margin %', xaxis_title='Month')
+    fig.update_yaxes(ticksuffix="%")
 
     return {"response": response, "figure": fig}
