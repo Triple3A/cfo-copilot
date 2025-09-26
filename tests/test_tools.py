@@ -1,6 +1,6 @@
 import pandas as pd
 from datetime import datetime
-from agent.tools import get_revenue
+from agent.tools import *
 
 def test_get_revenue():
     """
@@ -31,4 +31,34 @@ def test_get_revenue():
     assert "Actual: $100,000" in result["response"]
     assert "Budget: $90,000" in result["response"]
     assert "Variance: $10,000 (11.1%)" in result["response"]
-    assert result["figure"] is not None # Check that a figure was generated
+    assert result["figure"] is not None
+
+
+def test_get_gross_margin_trend():
+    """
+    Tests the gross margin trend calculation with mock data.
+    """
+
+    actuals_data = {
+        'account_category': ['Revenue', 'COGS', 'Revenue', 'COGS'],
+        'month': [datetime(2025, 4, 1), datetime(2025, 4, 1), datetime(2025, 5, 1), datetime(2025, 5, 1)],
+        'amount_usd': [80000, 30000, 90000, 35000],
+        'amount_eur': [84800, 31800, 95400, 37150]
+    }
+    budget_data = {
+        'account_category': ['Revenue', 'COGS', 'Revenue', 'COGS'],
+        'month': [datetime(2025, 4, 1), datetime(2025, 4, 1), datetime(2025, 5, 1), datetime(2025, 5, 1)],
+        'amount_usd': [85000, 32000, 88000, 36000],
+        'amount_eur': [85150, 32120, 88240, 36120]
+    }
+    mock_data = {
+        "actuals": pd.DataFrame(actuals_data),
+        "budget": pd.DataFrame(budget_data)
+    }
+
+
+    result = get_gross_margin_trend(mock_data, 2)
+
+
+    assert "The latest gross margin for May 2025 was 61.1%." in result["response"]
+    assert result["figure"] is not None
