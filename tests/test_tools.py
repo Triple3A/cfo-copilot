@@ -62,3 +62,31 @@ def test_get_gross_margin_trend():
 
     assert "The latest gross margin for May 2025 was 61.1%." in result["response"]
     assert result["figure"] is not None
+
+
+def test_get_opex_breakdown():
+    """
+    Tests the OPEX breakdown calculation with mock data.
+    """
+
+    actuals_data = {
+        'account_category': ['Opex:Marketing', 'Opex:R&D', 'Opex:Sales', 'Opex:Admin'],
+        'month': [datetime(2025, 6, 1), datetime(2025, 6, 1), datetime(2025, 6, 1), datetime(2025, 6, 1)],
+        'amount_usd': [30000, 20000, 15000, 5000],
+        'amount_eur': [31800, 21200, 15900, 5300]
+    }
+    
+    mock_data = {
+        "actuals": pd.DataFrame(actuals_data),
+    }
+
+
+    result = get_opex_breakdown(mock_data, "June 2025", 'USD')
+
+
+    assert "Marketing: $30,000" in result["response"]
+    assert "R&D: $20,000" in result["response"]
+    assert "Sales: $15,000" in result["response"]
+    assert "Admin: $5,000" in result["response"]
+    assert "Total Opex: $70,000" in result["response"]
+    assert result["figure"] is not None
