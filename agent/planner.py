@@ -25,6 +25,7 @@ def get_intent(query):
     - revenue: For questions about revenue.
     - gross_margin_trend: For questions about gross margin trends.
     - opex_breakdown: For questions about operating expense breakdowns.
+    - ebitda: For questions about EBITDA.
     - cash_runway: For questions about cash runway.
     - unknown: If the question doesn't fit any other category.
 
@@ -48,7 +49,7 @@ def get_intent(query):
     """
 
     # Set up the model and generate the content
-    model = genai.GenerativeModel('gemini-1.5-flash-latest')
+    model = genai.GenerativeModel('gemini-2.5-flash')
     response = model.generate_content(prompt)
 
     try:
@@ -69,6 +70,8 @@ def run_query(query, data):
     intent = intent_data.get("intent")
     params = intent_data.get("params", {})
     currency = params.get("currency", "USD")
+    if currency not in ['USD', 'EUR']:
+        currency = 'USD'
 
     print(f"DEBUG: Intent={intent}, Params={params}") # For debugging
 

@@ -24,10 +24,10 @@ def _parse_date(date_str):
 
 def load_and_prepare_data():
     """Loads, cleans, and prepares all financial data from CSVs."""
-    actuals = pd.read_csv('actuals.csv')
-    budget = pd.read_csv('budget.csv')
-    fx = pd.read_csv('fx.csv')
-    cash = pd.read_csv('cash.csv')
+    actuals = pd.read_csv('fixtures/actuals.csv')
+    budget = pd.read_csv('fixtures/budget.csv')
+    fx = pd.read_csv('fixtures/fx.csv')
+    cash = pd.read_csv('fixtures/cash.csv')
 
     actuals['amount'] = actuals['amount'].apply(_clean_financial_value)
     budget['amount'] = budget['amount'].apply(_clean_financial_value)
@@ -68,7 +68,7 @@ def load_and_prepare_data():
     }
 
 
-def get_revenue(data, month_str, currency):
+def get_revenue(data, month_str, currency='USD'):
     """Calculates Revenue (Actual vs Budget) for a given month."""
     try:
         target_date = datetime.strptime(month_str, '%B %Y')
@@ -166,7 +166,7 @@ def get_opex_breakdown(data, month_str, currency='USD'):
     response = f"Opex Breakdown for {month_str} ({currency}):\n"
     for index, row in monthly_opex_breakdown.iterrows():
         response += f"- {row['Opex_Category']}: {sign}{row[col]:,.0f}\n"
-    response += f"Total Opex: {sign}{opex_total:,.0f}"
+    response += f"\nTotal Opex: {sign}{opex_total:,.0f}"
 
     fig = px.pie(monthly_opex_breakdown, names=['Admin', 'Marketing', 'R&D', 'Sales'], values=col, title=f'OPEX Breakdown - {month_str}', hole=0.3)
     fig.update_traces(textposition='inside', textinfo='percent+label')
