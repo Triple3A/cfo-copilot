@@ -90,3 +90,26 @@ def test_get_opex_breakdown():
     assert "Admin: $5,000" in result["response"]
     assert "Total Opex: $70,000" in result["response"]
     assert result["figure"] is not None
+
+
+def test_get_ebitda():
+    """
+    Tests the EBITDA calculation with mock data.
+    """
+
+    actuals_data = {
+        'account_category': ['Revenue', 'COGS', 'Opex:Marketing', 'Opex:R&D'],
+        'month': [datetime(2025, 6, 1), datetime(2025, 6, 1), datetime(2025, 6, 1), datetime(2025, 6, 1)],
+        'amount_usd': [100000, 40000, 30000, 20000],
+        'amount_eur': [106400, 40300, 31800, 21200]
+    }
+    mock_data = {
+        "actuals": pd.DataFrame(actuals_data),
+    }
+
+
+    result = get_ebitda(mock_data, "June 2025", 'EUR')
+
+
+    assert "EBITDA for June 2025: €13,100" in result["response"]
+    assert result["figure"] is not None
