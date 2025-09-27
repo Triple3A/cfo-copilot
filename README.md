@@ -4,9 +4,6 @@ Chat with your financial data. Ask questions in plain English and get instant an
 
 CFO Copilot is a mini AI-powered assistant that lets you chat directly with your financial data. Instead of spending hours digging through CSVs and building charts manually, you can just ask questions in plain English and get back clean, board-ready answers in seconds.✨ 
 
-## What it looks like
-
-
 ## Features
 - Chat with your data: Ask simple, natural language questions.
 - Instant Answers: Get key financial metrics without the manual work.
